@@ -43,6 +43,7 @@ shared static this()
     auto cisettings = new CIServerSettings;
     if (existsFile("settings.json"))
     {
+        logInfo("Reading settings.json");
         auto data = stripUTF8Bom(cast(string)openFile("settings.json").readAll());
         auto json = parseJson(data);
         cisettings.parseSettings(json);
@@ -57,13 +58,38 @@ shared static this()
     listenHTTP(settings, router);
 }
 
+struct CIRun
+{
+    string reproUrl;
+    string commitSha;
+}
+
 void webhook(HTTPServerRequest req, HTTPServerResponse res)
 {
     enforceBadRequest("X-GitHub-Event" in req.headers, "No GitHub event");
     string eventType = req.headers["X-GitHub-Event"];
-    enforceBadRequest(eventType == "push" || eventType == "pull_request", "Only GitHub event types push and pull_request are valid");
+    enforceBadRequest(eventType == "push" || eventType == "pull_request" || eventType == "ping",
+                      "Only GitHub event types push, pull_request and ping are valid");
 
-    logInfo("Event: %s", eventType);
+    logInfo("Received event: %s", eventType);
+    if (eventType != "ping")
+    {
+        CIRun cirun;
+        if (eventType == "push")
+        {
+            cirun.reproUrl = req.json["repository"]["clone_url"].get!string;
+            cirun.commitSha = req.json["after"].get!string;
+        }
+        else if (eventType == "pull_request")
+        {
+            cirun.reproUrl = req.json["pull_request"]["repo"]["clone_url"].get!string;
+            cirun.commitSha = req.json["pull_request"]["head"]["sha"].get!string;
+        }
+        else
+            enforceBadRequest(false, "You did something wrong!");
+        logInfo("Repository URL: %s", cirun.reproUrl);
+        logInfo("Commit SHA:     %s", cirun.commitSha);
+    }
     logInfo("Body: %s", req.json.toPrettyString);
     res.writeBody("");
 }
