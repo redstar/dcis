@@ -1,3 +1,16 @@
+// Written in the D programming language.
+/**
+Simple Continuos Integration Server for GitHub.
+
+Copyright: Copyright Kai Nacke 2016.
+
+License: BSD
+
+Authors: Kai Nacke
+
+See: https://developer.github.com/guides/building-a-ci-server/
+*/
+
 import vibe.appmain;
 import vibe.core.concurrency;
 import vibe.core.core;
