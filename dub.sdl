@@ -1,0 +1,7 @@
+name "dcis"
+description "D Continuous Integration Server"
+authors "kai"
+copyright "Copyright © 2016, Kai Nacke <kai@redstar.de>"
+license "BSD"
+dependency "vibe-d" version="~>0.7.28"
+versions "VibeDefaultMain"
