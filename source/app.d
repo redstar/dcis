@@ -1,4 +1,13 @@
 import vibe.appmain;
+import vibe.core.file;
+import vibe.core.log;
+import vibe.data.json;
+import vibe.http.log;
+import vibe.http.router;
+import vibe.http.server;
+import vibe.stream.operations;
+import vibe.utils.string : stripUTF8Bom;
+
 import vibe.http.server;
 
 class CIServerSettings
@@ -51,7 +60,7 @@ shared static this()
 void webhook(HTTPServerRequest req, HTTPServerResponse res)
 {
     enforceBadRequest("X-GitHub-Event" in req.headers, "No GitHub event");
-    string eventType = req.headers["X-GitHub-Event"]);
+    string eventType = req.headers["X-GitHub-Event"];
     enforceBadRequest(eventType == "push" || eventType == "pull_request", "Only GitHub event types push and pull_request are valid");
 
     logInfo("Event: %s", eventType);
