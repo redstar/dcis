@@ -1,14 +1,18 @@
 import vibe.appmain;
+import vibe.core.concurrency;
+import vibe.core.core;
 import vibe.core.file;
 import vibe.core.log;
+import vibe.core.task;
 import vibe.data.json;
 import vibe.http.log;
 import vibe.http.router;
 import vibe.http.server;
 import vibe.stream.operations;
 import vibe.utils.string : stripUTF8Bom;
-
 import vibe.http.server;
+
+import std.functional : toDelegate;
 
 class CIServerSettings
 {
@@ -38,6 +42,8 @@ class CIServerSettings
     }
 }
 
+static Task builderTask;
+
 shared static this()
 {
     auto cisettings = new CIServerSettings;
@@ -51,6 +57,8 @@ shared static this()
 
     auto router = new URLRouter;
     router.post(cisettings.webhookPath, &webhook);
+
+    builderTask = runTask(toDelegate(&runBuilderTask));
 
     auto settings = new HTTPServerSettings;
     settings.port = cisettings.port;
@@ -89,7 +97,26 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
             enforceBadRequest(false, "You did something wrong!");
         logInfo("Repository URL: %s", cirun.reproUrl);
         logInfo("Commit SHA:     %s", cirun.commitSha);
+        builderTask.send(cirun);
     }
     logInfo("Body: %s", req.json.toPrettyString);
     res.writeBody("");
+}
+
+void runBuilderTask()
+{
+    while (true)
+    {
+        CIRun cirun;
+        receive(
+            (CIRun msg)
+            {
+                logInfo("Received run");
+                cirun = msg;
+            });
+
+        logInfo("To execute:");
+        logInfo("git clone %s", cirun.reproUrl);
+        logInfo("git checkout %s", cirun.commitSha);
+    }
 }
