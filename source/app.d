@@ -60,9 +60,11 @@ class CIServerSettings
 }
 
 static Task dispatcherTask;
+static State state;
 
 shared static this()
 {
+    // Create/load settings
     auto cisettings = new CIServerSettings;
     if (existsFile("settings.json"))
     {
@@ -71,6 +73,11 @@ shared static this()
         auto json = parseJson(data);
         cisettings.parseSettings(json);
     }
+
+    // Load state
+    state = State.load(Path("state.json"));
+    if (state.sanitize())
+        state.save();
 
     auto router = new URLRouter;
     router.post(cisettings.webhookPath, &webhook);
@@ -86,7 +93,7 @@ shared static this()
 
 void index(HTTPServerRequest req, HTTPServerResponse res)
 {
-    res.render!("index.dt", req);
+    res.render!("index.dt", state, req);
 }
 
 void webhook(HTTPServerRequest req, HTTPServerResponse res)

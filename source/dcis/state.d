@@ -23,14 +23,18 @@ struct CIRun
 
 class State
 {
+private:
     Array!CIRun state;
     Path path;
     
-    private this(CIRun[] ciruns, Path path)
+    this(CIRun[] ciruns, Path path)
     {
         this.state = Array!CIRun(ciruns);
         this.path = path;
     }
+    
+public:
+    alias Range = state.Range;
     
     static load(Path path)
     {
@@ -68,5 +72,10 @@ class State
     void add(CIRun cirun)
     {
         state.insert(cirun);
+    }
+
+    Range opSlice()
+    {
+        return state.opSlice();
     }
 }
