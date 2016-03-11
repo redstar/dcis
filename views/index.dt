@@ -10,14 +10,14 @@ body
   h1 D Continuous Integration Server
   p Lightweight CI written in D
   h2 Running builds
-  - foreach(s; state[])
+  - foreach_reverse(s; state[])
     - if (s.status == Status.running)
       p #{s.title}
   h2 Scheduled builds
-  - foreach(s; state[])
+  - foreach_reverse(s; state[])
     - if (s.status == Status.received)
       p #{s.title}
   h2 History
-  - foreach(s; state[])
+  - foreach_reverse(s; state[])
     - if (s.status != Status.received && s.status == Status.running)
       p #{s.title}
