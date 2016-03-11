@@ -25,6 +25,7 @@ import vibe.stream.operations;
 import vibe.utils.string : stripUTF8Bom;
 import vibe.http.server;
 
+import std.container.array;
 import std.functional : toDelegate;
 
 class CIServerSettings
@@ -65,7 +66,7 @@ shared static this()
     if (existsFile("settings.json"))
     {
         logInfo("Reading settings.json");
-        auto data = stripUTF8Bom(cast(string)openFile("settings.json").readAll());
+        auto data = readFileUTF8("settings.json");
         auto json = parseJson(data);
         cisettings.parseSettings(json);
     }
@@ -87,6 +88,8 @@ void index(HTTPServerRequest req, HTTPServerResponse res)
     res.render!("index.dt", req);
 }
 
+enum Status { received, running, finished, finishedWithError };
+
 struct CIRun
 {
     string reproUrl;
@@ -94,6 +97,7 @@ struct CIRun
     string title;
     string author;
     string committer;
+    Status status;
 }
 
 void webhook(HTTPServerRequest req, HTTPServerResponse res)
@@ -145,8 +149,10 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
 
 void runDispatcherTask(uint parallelBuildLimit)
 {
-    // Read current state file
-    // Set inWork to received
+    State state = State.load(Path("state.json"));
+    if (state.sanitize())
+        state.save();
+
     while (true)
     {
         CIRun cirun;
@@ -155,10 +161,62 @@ void runDispatcherTask(uint parallelBuildLimit)
             {
                 logInfo("Received run");
                 cirun = msg;
+                cirun.status = Status.received;
             });
 
         logInfo("To execute:");
         logInfo("git clone %s", cirun.reproUrl);
         logInfo("git checkout %s", cirun.commitSha);
+        state.add(cirun);
+        state.save();
+    }
+}
+
+class State
+{
+    Array!CIRun state;
+    Path path;
+    
+    private this(Array!CIRun state, Path path)
+    {
+        this.state = state;
+        this.path = path;
+    }
+    
+    static load(Path path)
+    {
+        if (existsFile(path))
+        {
+            auto data = readFileUTF8(path);
+            auto json = parseJson(data);
+            return new State(deserializeJson!(Array!CIRun)(json), path);
+        }
+        return new State(Array!CIRun(), path);
+    }
+    
+    void save()
+    {
+        auto json = serializeToJson(state);
+        writeFileUTF8(path, json.toString());
+    }
+
+    bool sanitize()
+    {
+        bool changed = false;
+
+        foreach (ref s; state)
+        {
+            if (s.status == Status.running)
+            {
+                s.status = Status.received;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+    
+    void add(CIRun cirun)
+    {
+        state.insert(cirun);
     }
 }
