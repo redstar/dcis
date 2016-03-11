@@ -25,6 +25,7 @@ import vibe.stream.operations;
 import vibe.utils.string : stripUTF8Bom;
 import vibe.http.server;
 
+import std.array;
 import std.container.array;
 import std.functional : toDelegate;
 
@@ -177,26 +178,27 @@ class State
     Array!CIRun state;
     Path path;
     
-    private this(Array!CIRun state, Path path)
+    private this(CIRun[] ciruns, Path path)
     {
-        this.state = state;
+        this.state = Array!CIRun(ciruns);
         this.path = path;
     }
     
     static load(Path path)
     {
+        CIRun[] ciruns;
         if (existsFile(path))
         {
             auto data = readFileUTF8(path);
             auto json = parseJson(data);
-            return new State(deserializeJson!(Array!CIRun)(json), path);
+            ciruns = deserializeJson!(CIRun[])(json);
         }
-        return new State(Array!CIRun(), path);
+        return new State(ciruns, path);
     }
     
     void save()
     {
-        auto json = serializeToJson(state);
+        auto json = serializeToJson(state.array());
         writeFileUTF8(path, json.toString());
     }
 
