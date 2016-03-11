@@ -82,6 +82,7 @@ shared static this()
     auto router = new URLRouter;
     router.post(cisettings.webhookPath, &webhook);
     router.get("/", &index);
+    router.get("/details", &details);
 
     dispatcherTask = runTask(toDelegate(&runDispatcherTask), cisettings.parallelBuildLimit);
 
@@ -94,6 +95,11 @@ shared static this()
 void index(HTTPServerRequest req, HTTPServerResponse res)
 {
     res.render!("index.dt", state, req);
+}
+
+void details(HTTPServerRequest req, HTTPServerResponse res)
+{
+    res.render!("details.dt", req);
 }
 
 void webhook(HTTPServerRequest req, HTTPServerResponse res)
@@ -135,10 +141,6 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
 
 void runDispatcherTask(uint parallelBuildLimit)
 {
-    State state = State.load(Path("state.json"));
-    if (state.sanitize())
-        state.save();
-
     while (true)
     {
         CIRun cirun;
