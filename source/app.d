@@ -32,6 +32,7 @@ class CIServerSettings
     ushort port = 8080;
     string[] bindAddresses;
     string webhookPath = "/github/webhook";
+    uint parallelBuildLimit = 1;
 
     this()
     {
@@ -52,10 +53,11 @@ class CIServerSettings
                 bindAddresses ~= address.get!string;
         }
         if (auto pv = "webhookPath" in json) webhookPath = pv.get!string;
+        if (auto pv = "parallelBuildLimit" in json) parallelBuildLimit = pv.get!uint;
     }
 }
 
-static Task builderTask;
+static Task dispatcherTask;
 
 shared static this()
 {
@@ -70,8 +72,9 @@ shared static this()
 
     auto router = new URLRouter;
     router.post(cisettings.webhookPath, &webhook);
+    router.get("/", &index);
 
-    builderTask = runTask(toDelegate(&runBuilderTask));
+    dispatcherTask = runTask(toDelegate(&runDispatcherTask), cisettings.parallelBuildLimit);
 
     auto settings = new HTTPServerSettings;
     settings.port = cisettings.port;
@@ -79,10 +82,18 @@ shared static this()
     listenHTTP(settings, router);
 }
 
+void index(HTTPServerRequest req, HTTPServerResponse res)
+{
+    res.render!("index.dt", req);
+}
+
 struct CIRun
 {
     string reproUrl;
     string commitSha;
+    string title;
+    string author;
+    string committer;
 }
 
 void webhook(HTTPServerRequest req, HTTPServerResponse res)
@@ -100,24 +111,42 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
         {
             cirun.reproUrl = req.json["repository"]["clone_url"].get!string;
             cirun.commitSha = req.json["after"].get!string;
+            cirun.title = req.json["head_commit"]["message"].get!string;
+            cirun.author = req.json["head_commit"]["author"]["name"].get!string;
+            cirun.committer = req.json["head_commit"]["committer"]["name"].get!string;
         }
         else if (eventType == "pull_request")
         {
             cirun.reproUrl = req.json["pull_request"]["repo"]["clone_url"].get!string;
             cirun.commitSha = req.json["pull_request"]["head"]["sha"].get!string;
+            cirun.title = req.json["pull_request"]["title"].get!string;
+            cirun.author = req.json["pull_request"]["user"]["login"].get!string; // FIXME
+            cirun.committer = req.json["pull_request"]["user"]["login"].get!string; // FIXME
         }
         else
             enforceBadRequest(false, "You did something wrong!");
         logInfo("Repository URL: %s", cirun.reproUrl);
         logInfo("Commit SHA:     %s", cirun.commitSha);
-        builderTask.send(cirun);
+        dispatcherTask.send(cirun);
     }
     logInfo("Body: %s", req.json.toPrettyString);
     res.writeBody("");
 }
 
-void runBuilderTask()
+/*
+- Request ->
+    - status, title, authot
+      status: received, inWork, finished, finishedError
+
+- Put Request in slist first
+- Serialize list to disk
+
+*/
+
+void runDispatcherTask(uint parallelBuildLimit)
 {
+    // Read current state file
+    // Set inWork to received
     while (true)
     {
         CIRun cirun;
