@@ -15,6 +15,7 @@ struct CIRun
 {
     uint id;
     string reproUrl;
+    string reproName;
     string commitSha;
     string title;
     string author;

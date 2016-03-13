@@ -107,6 +107,7 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
         if (eventType == "push")
         {
             cirun.reproUrl = req.json["repository"]["clone_url"].get!string;
+            cirun.reproName = req.json["repository"]["name"].get!string;
             cirun.commitSha = req.json["after"].get!string;
             cirun.title = req.json["head_commit"]["message"].get!string;
             cirun.author = req.json["head_commit"]["author"]["name"].get!string;
@@ -115,6 +116,7 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
         else if (eventType == "pull_request")
         {
             cirun.reproUrl = req.json["pull_request"]["repo"]["clone_url"].get!string;
+            cirun.reproName = req.json["pull_request"]["repo"]["clone_url"].get!string; // FIXME
             cirun.commitSha = req.json["pull_request"]["head"]["sha"].get!string;
             cirun.title = req.json["pull_request"]["title"].get!string;
             cirun.author = req.json["pull_request"]["user"]["login"].get!string; // FIXME
@@ -151,5 +153,19 @@ void runDispatcherTask(uint parallelBuildLimit)
         logInfo("git checkout %s", cirun.commitSha);
         state.add(cirun);
         state.save();
+        runWorkerTask(&runBuild, cirun, "/usr/src/dcis/dobuild.sh");
     }
+}
+
+
+void runBuild(CIRun cirun, string cmd)
+{
+    import std.stdio;
+    import std.process;
+
+    auto report = new File("/tmp/dcis."~to!string(cirun.id)~".report", "w");
+    auto nothing = new File("/dev/null", "r");
+    const(char[][]) args = [ cmd, cirun.reproUrl, cirun.reproName, cirun.commitSha];
+    auto pid = spawnProcess(args, *nothing, *report, *report, null, Config.suppressConsole, "/tmp");
+    auto rc = wait(pid);
 }
