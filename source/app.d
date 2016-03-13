@@ -36,6 +36,8 @@ class CIServerSettings
     ushort port = 8080;
     string[] bindAddresses;
     string webhookPath = "/github/webhook";
+    string buildCommand;
+    string workDirectory = "/tmp";
     uint parallelBuildLimit = 1;
 
     this()
@@ -57,7 +59,20 @@ class CIServerSettings
                 bindAddresses ~= address.get!string;
         }
         if (auto pv = "webhookPath" in json) webhookPath = pv.get!string;
+        if (auto pv = "buildCommand" in json) buildCommand = pv.get!string;
+        if (auto pv = "workDirectory" in json) workDirectory = pv.get!string;
         if (auto pv = "parallelBuildLimit" in json) parallelBuildLimit = pv.get!uint;
+    }
+
+    void logsettings(LogLevel level)()
+    {
+        log!level("Settings:");
+        log!level("Port: %s", port);
+        log!level("Bind addresses: %s", bindAddresses);
+        log!level("Path for GitHub events: %s", webhookPath);
+        log!level("Build command: %s", buildCommand);
+        log!level("Working directory for build: %s", workDirectory);
+        log!level("Max. number of parallel build: %d", parallelBuildLimit);
     }
 }
 
@@ -75,6 +90,7 @@ shared static this()
         auto json = parseJson(data);
         cisettings.parseSettings(json);
     }
+    cisettings.logsettings!(LogLevel.info)();
 
     // Load state
     state = State.load(Path("state.json"));
@@ -85,7 +101,12 @@ shared static this()
     router.post(cisettings.webhookPath, &webhook);
     router.registerWebInterface(new WebApp(state));
 
-    dispatcherTask = runTask(toDelegate(&runDispatcherTask), cisettings.parallelBuildLimit);
+    DispatcherSettings disettings = {
+        buildCommand: cisettings.buildCommand,
+        workDirectory: cisettings.workDirectory,
+        parallelBuildLimit: cisettings.parallelBuildLimit,
+    };
+    dispatcherTask = runTask(toDelegate(&runDispatcherTask), disettings);
 
     auto settings = new HTTPServerSettings;
     settings.port = cisettings.port;
@@ -132,7 +153,14 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
     res.writeBody("");
 }
 
-void runDispatcherTask(uint parallelBuildLimit)
+struct DispatcherSettings
+{
+    string buildCommand;
+    string workDirectory;
+    uint parallelBuildLimit;
+}
+
+void runDispatcherTask(DispatcherSettings settings)
 {
     int running = 0;
     int scheduled = 0;
@@ -148,24 +176,27 @@ void runDispatcherTask(uint parallelBuildLimit)
                 cirun.status = Status.received;
             });
 
-        logInfo("To execute:");
-        logInfo("git clone %s", cirun.reproUrl);
-        logInfo("git checkout %s", cirun.commitSha);
         state.add(cirun);
         state.save();
-        runWorkerTask(&runBuild, cirun, "/usr/src/dcis/dobuild.sh");
+        runWorkerTask(&runBuild, cirun, settings.buildCommand, settings.workDirectory);
     }
 }
 
 
-void runBuild(CIRun cirun, string cmd)
+void runBuild(CIRun cirun, string buildCommand, string workDirectory)
 {
+    import std.file : mkdir, rmdirRecurse;
     import std.stdio;
     import std.process;
 
-    auto report = new File("/tmp/dcis."~to!string(cirun.id)~".report", "w");
-    auto nothing = new File("/dev/null", "r");
-    const(char[][]) args = [ cmd, cirun.reproUrl, cirun.reproName, cirun.commitSha];
-    auto pid = spawnProcess(args, *nothing, *report, *report, null, Config.suppressConsole, "/tmp");
+    auto report = File("/tmp/dcis."~to!string(cirun.id)~".report", "w+");
+    auto nothing = File("/dev/null", "r");
+    const(char[][]) args = [ buildCommand, cirun.reproUrl, cirun.reproName, cirun.commitSha];
+    auto path = Path(joinPath(workDirectory, "dcis."~to!string(cirun.id)));
+    path.normalize();
+    auto directory = path.toNativeString();
+    mkdir(directory);
+    auto pid = spawnProcess(args, nothing, report, report, null, Config.suppressConsole, directory);
     auto rc = wait(pid);
+    rmdirRecurse(directory);
 }
