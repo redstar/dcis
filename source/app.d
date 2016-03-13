@@ -24,10 +24,12 @@ import vibe.http.server;
 import vibe.stream.operations;
 import vibe.utils.string : stripUTF8Bom;
 import vibe.http.server;
+import vibe.web.web;
 
 import std.functional : toDelegate;
 
 import dcis.state;
+import dcis.web;
 
 class CIServerSettings
 {
@@ -81,8 +83,7 @@ shared static this()
 
     auto router = new URLRouter;
     router.post(cisettings.webhookPath, &webhook);
-    router.get("/", &index);
-    router.get("/details", &details);
+    router.registerWebInterface(new WebApp(state));
 
     dispatcherTask = runTask(toDelegate(&runDispatcherTask), cisettings.parallelBuildLimit);
 
@@ -90,16 +91,6 @@ shared static this()
     settings.port = cisettings.port;
     settings.bindAddresses = cisettings.bindAddresses;
     listenHTTP(settings, router);
-}
-
-void index(HTTPServerRequest req, HTTPServerResponse res)
-{
-    res.render!("index.dt", state, req);
-}
-
-void details(HTTPServerRequest req, HTTPServerResponse res)
-{
-    res.render!("details.dt", req);
 }
 
 void webhook(HTTPServerRequest req, HTTPServerResponse res)
@@ -141,6 +132,9 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
 
 void runDispatcherTask(uint parallelBuildLimit)
 {
+    int running = 0;
+    int scheduled = 0;
+
     while (true)
     {
         CIRun cirun;

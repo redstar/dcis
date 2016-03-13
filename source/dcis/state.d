@@ -13,6 +13,7 @@ enum Status { received, running, finished, finishedWithError };
 
 struct CIRun
 {
+    uint id;
     string reproUrl;
     string commitSha;
     string title;
@@ -26,11 +27,17 @@ class State
 private:
     Array!CIRun state;
     Path path;
+    uint nextId;
     
     this(CIRun[] ciruns, Path path)
     {
+        import std.algorithm.comparison : max;
+
         this.state = Array!CIRun(ciruns);
         this.path = path;
+        this.nextId = 0;
+        foreach (cirun; ciruns)
+            this.nextId = max(this.nextId, cirun.id+1);
     }
     
 public:
@@ -69,8 +76,9 @@ public:
         return changed;
     }
     
-    void add(CIRun cirun)
+    void add(ref CIRun cirun)
     {
+        cirun.id = nextId++;
         state.insert(cirun);
     }
 
@@ -78,4 +86,10 @@ public:
     {
         return state.opSlice();
     }
+    /*
+    ref CIRun findById(uint id)
+    {
+        foreach
+    }
+    */
 }
