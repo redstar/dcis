@@ -76,8 +76,8 @@ class CIServerSettings
     }
 }
 
-static Task dispatcherTask;
-static State state;
+private Task dispatcherTask;
+private State state;
 
 shared static this()
 {
@@ -167,11 +167,18 @@ void runDispatcherTask(DispatcherSettings settings)
 
     while (true)
     {
-        logInfo("Before receive");
         receive(
-            (int id, Status status)
+            (CIRun msg)
             {
-                logInfo("Received status update for id %d: %d", id, status);
+                logInfo("Received new build");
+                CIRun cirun = msg;
+                cirun.status = Status.received;
+                state.add(cirun);
+                runWorkerTask(&runBuild, Task.getThis(), cirun, settings.buildCommand, settings.workDirectory);
+            },
+            (uint id, Status status)
+            {
+                logInfo("Received status update for build %d: %d", id, status);
                 foreach(ref cirun; state)
                 {
                     if (cirun.id == id)
@@ -180,17 +187,10 @@ void runDispatcherTask(DispatcherSettings settings)
                         break;
                     }
                 }
-            },
-            (CIRun msg)
-            {
-                logInfo("Received run");
-                CIRun cirun = msg;
-                cirun.status = Status.received;
-                state.add(cirun);
-                state.save();
-                runWorkerTask(&runBuild, Task.getThis(), cirun, settings.buildCommand, settings.workDirectory);
             });
-        logInfo("After receive");
+
+        // Save state after each received message
+        state.save();
     }
 }
 
@@ -203,8 +203,8 @@ void runBuild(Task parent, CIRun cirun, string buildCommand, string workDirector
 
     logInfo("Build %d starts now", cirun.id);
     parent.send(cirun.id, Status.running);
-    auto report = File("/tmp/dcis."~to!string(cirun.id)~".report", "w+");
-    auto nothing = File("/dev/null", "r");
+    auto report = File("/tmp/dcis."~to!string(cirun.id)~".report", "w+"); // FIXME
+    auto nothing = File("/dev/null", "r"); // FIXME
     const(char[][]) args = [ buildCommand, cirun.reproUrl, cirun.reproName, cirun.commitSha];
     auto path = Path(joinPath(workDirectory, "dcis."~to!string(cirun.id)));
     path.normalize();
