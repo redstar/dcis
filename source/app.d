@@ -167,28 +167,42 @@ void runDispatcherTask(DispatcherSettings settings)
 
     while (true)
     {
-        CIRun cirun;
+        logInfo("Before receive");
         receive(
+            (int id, Status status)
+            {
+                logInfo("Received status update for id %d: %d", id, status);
+                foreach(ref cirun; state)
+                {
+                    if (cirun.id == id)
+                    {
+                        cirun.status = status;
+                        break;
+                    }
+                }
+            },
             (CIRun msg)
             {
                 logInfo("Received run");
-                cirun = msg;
+                CIRun cirun = msg;
                 cirun.status = Status.received;
+                state.add(cirun);
+                state.save();
+                runWorkerTask(&runBuild, Task.getThis(), cirun, settings.buildCommand, settings.workDirectory);
             });
-
-        state.add(cirun);
-        state.save();
-        runWorkerTask(&runBuild, cirun, settings.buildCommand, settings.workDirectory);
+        logInfo("After receive");
     }
 }
 
 
-void runBuild(CIRun cirun, string buildCommand, string workDirectory)
+void runBuild(Task parent, CIRun cirun, string buildCommand, string workDirectory)
 {
     import std.file : mkdir, rmdirRecurse;
     import std.stdio;
     import std.process;
 
+    logInfo("Build %d starts now", cirun.id);
+    parent.send(cirun.id, Status.running);
     auto report = File("/tmp/dcis."~to!string(cirun.id)~".report", "w+");
     auto nothing = File("/dev/null", "r");
     const(char[][]) args = [ buildCommand, cirun.reproUrl, cirun.reproName, cirun.commitSha];
@@ -199,4 +213,6 @@ void runBuild(CIRun cirun, string buildCommand, string workDirectory)
     auto pid = spawnProcess(args, nothing, report, report, null, Config.suppressConsole, directory);
     auto rc = wait(pid);
     rmdirRecurse(directory);
+    logInfo("Build %d ended with rc = %d", cirun.id, rc);
+    parent.send(cirun.id, rc == 0 ? Status.finished : Status.finishedWithError);
 }
