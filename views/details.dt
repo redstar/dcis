@@ -11,7 +11,7 @@ body
   p Lightweight CI written in D
   h2 Details for #{cirun.title}
   p Author: #{cirun.author}
-  p Author: #{cirun.committer}
+  p Committer: #{cirun.committer}
   p commit: #{cirun.commitSha}
   p Log:
   a(href="/") Back
