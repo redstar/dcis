@@ -9,4 +9,9 @@ head
 body
   h1 D Continuous Integration Server
   p Lightweight CI written in D
-  h2 Details for...
+  h2 Details for #{cirun.title}
+  p Author: #{cirun.author}
+  p Author: #{cirun.committer}
+  p commit: #{cirun.commitSha}
+  p Log:
+  a(href="/") Back

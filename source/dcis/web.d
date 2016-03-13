@@ -23,8 +23,19 @@ public:
         render!("index.dt", state);
     }
 
-    void getDetails()
+    @path("/details/:id")
+    void getDetails(int _id)
     {
-        render!("details.dt");
+        CIRun cirun;
+        foreach(c; state)
+        {
+            if (c.id == _id)
+            {
+                cirun = c;
+                break;
+            }
+        }
+
+        render!("details.dt", cirun);
     }
 }

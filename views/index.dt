@@ -12,12 +12,12 @@ body
   h2 Running builds
   - foreach_reverse(s; state[])
     - if (s.status == Status.running)
-      p #{s.title}
+      a(href="/details/#{s.id}") #{s.title}
   h2 Scheduled builds
   - foreach_reverse(s; state[])
     - if (s.status == Status.received)
-      p #{s.title}
+      a(href="/details/#{s.id}") #{s.title}
   h2 History
   - foreach_reverse(s; state[])
     - if (s.status != Status.received && s.status == Status.running)
-      p #{s.title}
+      a(href="/details/#{s.id}") #{s.title}

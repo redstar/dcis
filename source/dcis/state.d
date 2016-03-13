@@ -86,10 +86,4 @@ public:
     {
         return state.opSlice();
     }
-    /*
-    ref CIRun findById(uint id)
-    {
-        foreach
-    }
-    */
 }
