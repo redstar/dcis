@@ -124,30 +124,30 @@ void webhook(HTTPServerRequest req, HTTPServerResponse res)
     logInfo("Received event: %s", eventType);
     if (eventType != "ping")
     {
-        CIRun cirun;
+        Build build;
         if (eventType == "push")
         {
-            cirun.reproUrl = req.json["repository"]["clone_url"].get!string;
-            cirun.reproName = req.json["repository"]["name"].get!string;
-            cirun.commitSha = req.json["after"].get!string;
-            cirun.title = req.json["head_commit"]["message"].get!string;
-            cirun.author = req.json["head_commit"]["author"]["name"].get!string;
-            cirun.committer = req.json["head_commit"]["committer"]["name"].get!string;
+            build.reproUrl = req.json["repository"]["clone_url"].get!string;
+            build.reproName = req.json["repository"]["name"].get!string;
+            build.commitSha = req.json["after"].get!string;
+            build.title = req.json["head_commit"]["message"].get!string;
+            build.author = req.json["head_commit"]["author"]["name"].get!string;
+            build.committer = req.json["head_commit"]["committer"]["name"].get!string;
         }
         else if (eventType == "pull_request")
         {
-            cirun.reproUrl = req.json["pull_request"]["repo"]["clone_url"].get!string;
-            cirun.reproName = req.json["pull_request"]["repo"]["clone_url"].get!string; // FIXME
-            cirun.commitSha = req.json["pull_request"]["head"]["sha"].get!string;
-            cirun.title = req.json["pull_request"]["title"].get!string;
-            cirun.author = req.json["pull_request"]["user"]["login"].get!string; // FIXME
-            cirun.committer = req.json["pull_request"]["user"]["login"].get!string; // FIXME
+            build.reproUrl = req.json["pull_request"]["repo"]["clone_url"].get!string;
+            build.reproName = req.json["pull_request"]["repo"]["clone_url"].get!string; // FIXME
+            build.commitSha = req.json["pull_request"]["head"]["sha"].get!string;
+            build.title = req.json["pull_request"]["title"].get!string;
+            build.author = req.json["pull_request"]["user"]["login"].get!string; // FIXME
+            build.committer = req.json["pull_request"]["user"]["login"].get!string; // FIXME
         }
         else
             enforceBadRequest(false, "You did something wrong!");
-        logInfo("Repository URL: %s", cirun.reproUrl);
-        logInfo("Commit SHA:     %s", cirun.commitSha);
-        dispatcherTask.send(cirun);
+        logInfo("Repository URL: %s", build.reproUrl);
+        logInfo("Commit SHA:     %s", build.commitSha);
+        dispatcherTask.send(build);
     }
     logInfo("Body: %s", req.json.toPrettyString);
     res.writeBody("");
@@ -168,22 +168,22 @@ void runDispatcherTask(DispatcherSettings settings)
     while (true)
     {
         receive(
-            (CIRun msg)
+            (Build msg)
             {
                 logInfo("Received new build");
-                CIRun cirun = msg;
-                cirun.status = Status.received;
-                state.add(cirun);
-                runWorkerTask(&runBuild, Task.getThis(), cirun, settings.buildCommand, settings.workDirectory);
+                Build build = msg;
+                build.status = Status.received;
+                state.add(build);
+                runWorkerTask(&runBuild, Task.getThis(), build, settings.buildCommand, settings.workDirectory);
             },
             (uint id, Status status)
             {
                 logInfo("Received status update for build %d: %d", id, status);
-                foreach(ref cirun; state)
+                foreach(ref build; state)
                 {
-                    if (cirun.id == id)
+                    if (build.id == id)
                     {
-                        cirun.status = status;
+                        build.status = status;
                         break;
                     }
                 }
@@ -195,24 +195,24 @@ void runDispatcherTask(DispatcherSettings settings)
 }
 
 
-void runBuild(Task parent, CIRun cirun, string buildCommand, string workDirectory)
+void runBuild(Task parent, Build build, string buildCommand, string workDirectory)
 {
     import std.file : mkdir, rmdirRecurse;
     import std.stdio;
     import std.process;
 
-    logInfo("Build %d starts now", cirun.id);
-    parent.send(cirun.id, Status.running);
-    auto report = File("/tmp/dcis."~to!string(cirun.id)~".report", "w+"); // FIXME
+    logInfo("Build %d starts now", build.id);
+    parent.send(build.id, Status.running);
+    auto report = File("/tmp/dcis."~to!string(build.id)~".report", "w+"); // FIXME
     auto nothing = File("/dev/null", "r"); // FIXME
-    const(char[][]) args = [ buildCommand, cirun.reproUrl, cirun.reproName, cirun.commitSha];
-    auto path = Path(joinPath(workDirectory, "dcis."~to!string(cirun.id)));
+    const(char[][]) args = [ buildCommand, build.reproUrl, build.reproName, build.commitSha];
+    auto path = Path(joinPath(workDirectory, "dcis."~to!string(build.id)));
     path.normalize();
     auto directory = path.toNativeString();
     mkdir(directory);
     auto pid = spawnProcess(args, nothing, report, report, null, Config.suppressConsole, directory);
     auto rc = wait(pid);
     rmdirRecurse(directory);
-    logInfo("Build %d ended with rc = %d", cirun.id, rc);
-    parent.send(cirun.id, rc == 0 ? Status.finished : Status.finishedWithError);
+    logInfo("Build %d ended with rc = %d", build.id, rc);
+    parent.send(build.id, rc == 0 ? Status.finished : Status.finishedWithError);
 }

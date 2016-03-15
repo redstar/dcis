@@ -11,7 +11,7 @@ import std.container.array;
 
 enum Status { received, running, finished, finishedWithError };
 
-struct CIRun
+struct Build
 {
     uint id;
     string reproUrl;
@@ -26,39 +26,39 @@ struct CIRun
 class State
 {
 private:
-    Array!CIRun state;
+    Array!Build builds;
     Path path;
     uint nextId;
     
-    this(CIRun[] ciruns, Path path)
+    this(Build[] builds, Path path)
     {
         import std.algorithm.comparison : max;
 
-        this.state = Array!CIRun(ciruns);
+        this.builds = Array!Build(builds);
         this.path = path;
         this.nextId = 0;
-        foreach (cirun; ciruns)
-            this.nextId = max(this.nextId, cirun.id+1);
+        foreach (build; builds)
+            this.nextId = max(this.nextId, build.id+1);
     }
     
 public:
-    alias Range = state.Range;
+    alias Range = builds.Range;
     
     static load(Path path)
     {
-        CIRun[] ciruns;
+        Build[] builds;
         if (existsFile(path))
         {
             auto data = readFileUTF8(path);
             auto json = parseJson(data);
-            ciruns = deserializeJson!(CIRun[])(json);
+            builds = deserializeJson!(Build[])(json);
         }
-        return new State(ciruns, path);
+        return new State(builds, path);
     }
     
     void save()
     {
-        auto json = serializeToJson(state.array());
+        auto json = serializeToJson(builds.array());
         writeFileUTF8(path, json.toString());
     }
 
@@ -66,25 +66,25 @@ public:
     {
         bool changed = false;
 
-        foreach (ref s; state)
+        foreach (ref build; builds)
         {
-            if (s.status == Status.running)
+            if (build.status == Status.running)
             {
-                s.status = Status.received;
+                build.status = Status.received;
                 changed = true;
             }
         }
         return changed;
     }
     
-    void add(ref CIRun cirun)
+    void add(ref Build build)
     {
-        cirun.id = nextId++;
-        state.insert(cirun);
+        build.id = nextId++;
+        builds.insert(build);
     }
 
     Range opSlice()
     {
-        return state.opSlice();
+        return builds.opSlice();
     }
 }

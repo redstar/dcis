@@ -1,4 +1,4 @@
-﻿// Written in the D programming language.
+// Written in the D programming language.
 module dcis.web;
 
 import vibe.core.core;
@@ -31,17 +31,17 @@ public:
     @path("/details/:id")
     void getDetails(int _id)
     {
-        CIRun cirun;
+        Build build;
         foreach(c; state)
         {
             if (c.id == _id)
             {
-                cirun = c;
+                build = c;
                 break;
             }
         }
 
-        render!("details.dt", cirun);
+        render!("details.dt", build);
     }
     
     @path("/ws/:id")
