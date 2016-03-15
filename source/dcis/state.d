@@ -87,4 +87,25 @@ public:
     {
         return builds.opSlice();
     }
+    
+    bool exists(uint id)
+    {
+        foreach (build; builds)
+            if (build.id == id) return true;
+        return false;
+    }
+    
+    bool updateStatus(uint id, Status status)
+    {
+        foreach (build; builds)
+        {
+            if (build.id == id)
+            {
+                auto old = build.status;
+                build.status = status;
+                return build.status != old;
+            }
+        }
+        return false;
+    }
 }

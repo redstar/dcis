@@ -179,14 +179,7 @@ void runDispatcherTask(DispatcherSettings settings)
             (uint id, Status status)
             {
                 logInfo("Received status update for build %d: %d", id, status);
-                foreach(ref build; state)
-                {
-                    if (build.id == id)
-                    {
-                        build.status = status;
-                        break;
-                    }
-                }
+                state.updateStatus(id, status);
             });
 
         // Save state after each received message
