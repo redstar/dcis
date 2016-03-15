@@ -6,6 +6,23 @@ head
     body: { font-family: Sans-Serif; }
     h2: { font-size: 150%; }
     h1: { font-size: 300%; }
+    code: { white-space: pre; }
+  script.
+    function getURL(path) {
+      // FIXME: no SSL
+      var href = window.location.href.substring(7);
+      var idx = href.indexOf('/');
+      return 'ws://' + href.substring(0, idx) + '/' + path;
+    }
+    
+    var socket = new WebSocket(getURL('ws/'+#{build.id}))
+    socket.onopen = function() { console.log('open') }
+    socket.onmessage = function(msg) {
+      var log = document.getElementById('log')
+      console.log('msg: ' + msg.data)
+      log.innerHTML += msg.data
+    }
+    socket.onclose = function() { console.log('close') }
 body
   h1 D Continuous Integration Server
   p Lightweight CI written in D
@@ -14,4 +31,5 @@ body
   p Committer: #{build.committer}
   p commit: #{build.commitSha}
   p Log:
+  code#log
   a(href="/") Back

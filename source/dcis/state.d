@@ -7,6 +7,7 @@ import vibe.data.json;
 import vibe.stream.operations;
 
 import std.array;
+import std.conv;
 import std.container.array;
 
 enum Status { received, running, finished, finishedWithError };
@@ -95,9 +96,16 @@ public:
         return false;
     }
     
+    ref Build getBuild(uint id)
+    {
+        foreach (ref build; builds)
+            if (build.id == id) return build;
+        throw new Exception("No build with id " ~ to!string(id));
+    }
+    
     bool updateStatus(uint id, Status status)
     {
-        foreach (build; builds)
+        foreach (ref build; builds)
         {
             if (build.id == id)
             {
