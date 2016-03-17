@@ -19,8 +19,8 @@ head
     socket.onopen = function() { console.log('open') }
     socket.onmessage = function(msg) {
       var log = document.getElementById('log')
-      console.log('msg: ' + msg.data)
-      log.innerHTML += msg.data
+      var node = document.createTextNode(msg.data)
+      log.appendChild(node)
     }
     socket.onclose = function() { console.log('close') }
 body
@@ -31,5 +31,5 @@ body
   p Committer: #{build.committer}
   p commit: #{build.commitSha}
   p Log:
-  code#log
+  pre#log
   a(href="/") Back

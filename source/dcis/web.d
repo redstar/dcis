@@ -53,26 +53,16 @@ public:
 
         enforceBadRequest(state.exists(_id));
 
-        // Wait for the build to start
-        logInfo("Wait for state");
-        auto build = state.getBuild(_id);
-        while (true)
-        {
-            import core.atomic;
-            logInfo("Wait...");
-            atomicFence(); // Overkill
-            auto status = build.status;
-            if (status > Status.received)
-                break;
-            sleep(500.msecs);
-        }
+        string dirName = "/tmp"; // FIXME
+        string fileName = dirName ~ "/dcis." ~ to!string(_id) ~ ".report";
 
         // Wait until the report file is written
         logInfo("Wait for file");
-        string fileName = "/tmp/dcis." ~ to!string(_id) ~ ".report";
+        auto watcher = Path("/tmp").watchDirectory(false);
+        DirectoryChange[] changes;
+        watcher.readChanges(changes, 0.msecs);
         while (!existsFile(fileName)) {
-            logInfo("Wait...");
-            sleep(200.msecs);
+            watcher.readChanges(changes);
         }
         
         // Transmit the file
@@ -83,9 +73,11 @@ public:
         {
             ubyte[2048] buf;
 
-            if (file.leastSize() > 0)
+            auto leastSize = file.leastSize;
+            logInfo("leastSize %d (%s)", leastSize, file.dataAvailableForRead);
+            if (leastSize > 0)
             {
-                auto size = min(file.leastSize(), buf.length);
+                auto size = min(leastSize, buf.length);
                 logInfo("Reading %d bytes", size);
                 if (size > 0)
                 {
@@ -95,10 +87,9 @@ public:
             }
             else
             {
-                import core.atomic;
-                atomicFence(); // Overkill
-                if (build.status >= Status.finished)
+                if (state.getBuild(_id).status >= Status.finished)
                     break;
+                logInfo("Wait for data");
                 sleep(200.msecs);
             }
         }
